@@ -3,53 +3,274 @@
 
 #pragma once
 
+#include <array>
+#include <algorithm>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include <cmath>
+// 头部（observations.h 或对应 .cpp 顶部）补充：
+#include <iostream>
+#include <iomanip>
+#include <numeric>
+#include <fstream>
+#include <sstream>
+#include <limits>
+
+#include <iostream>
+#include <iomanip>   // ← 必须：std::setprecision, std::fixed
+#include <numeric>   // 如果用了 std::iota
+#include <limits>    // 如果用了 std::numeric_limits
+
 #include "isaaclab/envs/manager_based_rl_env.h"
+#include "/home/tianhup/Desktop/unitree_rl_lab/deploy/thirdparty/cnpy/cnpy.h"
+// #include <cnpy.h>
+#include <spdlog/spdlog.h>
+#include <eigen3/Eigen/Dense>  // ✅ 用到了 Eigen::VectorXf，就需要这个
+namespace {
+inline std::vector<float> to_vec(const std::vector<float>& v) { return v; }
+inline std::vector<float> to_vec(const Eigen::VectorXf& v) {
+    std::vector<float> out(static_cast<size_t>(v.size()));
+    for (int i = 0; i < v.size(); ++i) out[static_cast<size_t>(i)] = v[i];
+    return out;
+}
 
-namespace isaaclab
-{
-namespace mdp
-{
+// joint_pos_rel 的首帧“基线”（进入 Velocity 时采样到的 q）
+inline bool& jp_baseline_set() { static bool b = false; return b; }
+inline std::vector<float>& jp_baseline() { static std::vector<float> v; return v; }
+} // anonymous
 
+// ==== 可选：提供一个可从别处调用的“重置基线”函数（放在命名空间里）====
+namespace isaaclab { namespace mdp {
+inline void reset_joint_pos_rel_baseline() {
+    jp_baseline().clear();
+    jp_baseline_set() = false;
+}
+}} // namespace
+
+namespace isaaclab {
+namespace mdp {
+
+// ------------ 普通 observation，保持不变 ------------
 REGISTER_OBSERVATION(base_ang_vel)
 {
-    auto & asset = env->robot;
-    auto & data = asset->data.root_ang_vel_b;
+    auto& asset = env->robot;
+    auto& data  = asset->data.root_ang_vel_b;
     return std::vector<float>(data.data(), data.data() + data.size());
 }
 
 REGISTER_OBSERVATION(projected_gravity)
 {
-    auto & asset = env->robot;
-    auto & data = asset->data.projected_gravity_b;
+    auto& asset = env->robot;
+    auto& data  = asset->data.projected_gravity_b;
     return std::vector<float>(data.data(), data.data() + data.size());
 }
 
+// REGISTER_OBSERVATION(joint_pos_rel)
+// {
+//     auto & asset = env->robot;
+//     std::vector<float> data;
+
+//     auto cfg = env->cfg["observations"]["joint_pos_rel"];
+//     if(cfg["params"]["asset_cfg"]["joint_ids"].IsDefined())
+//     {
+//         auto joint_ids = cfg["params"]["asset_cfg"]["joint_ids"].as<std::vector<int>>();
+//         data.resize(joint_ids.size());
+//         for(size_t i = 0; i < joint_ids.size(); ++i)
+//         {
+//             data[i] = asset->data.joint_pos[joint_ids[i]] - asset->data.default_joint_pos[joint_ids[i]];
+//         }
+//     }
+//     else
+//     {
+//         data.resize(asset->data.joint_pos.size());
+//         for(size_t i = 0; i < asset->data.joint_pos.size(); ++i)
+//         {
+//             data[i] = asset->data.joint_pos[i] - asset->data.default_joint_pos[i];
+//         }
+//     }
+
+//     return data;
+// }
+
 REGISTER_OBSERVATION(joint_pos_rel)
 {
-    auto & asset = env->robot;
+    auto& asset = env->robot;
     std::vector<float> data;
 
     auto cfg = env->cfg["observations"]["joint_pos_rel"];
-    if(cfg["params"]["asset_cfg"]["joint_ids"].IsDefined())
-    {
-        auto joint_ids = cfg["params"]["asset_cfg"]["joint_ids"].as<std::vector<int>>();
-        data.resize(joint_ids.size());
-        for(size_t i = 0; i < joint_ids.size(); ++i)
-        {
-            data[i] = asset->data.joint_pos[joint_ids[i]] - asset->data.default_joint_pos[joint_ids[i]];
-        }
+
+    // 统一拿到要用的关节索引 joint_ids
+    std::vector<int> joint_ids;
+    if (cfg["params"]["asset_cfg"]["joint_ids"].IsDefined()) {
+        joint_ids = cfg["params"]["asset_cfg"]["joint_ids"].as<std::vector<int>>();
+    } else {
+        joint_ids.resize(asset->data.joint_pos.size());
+        std::iota(joint_ids.begin(), joint_ids.end(), 0);
     }
-    else
-    {
-        data.resize(asset->data.joint_pos.size());
-        for(size_t i = 0; i < asset->data.joint_pos.size(); ++i)
-        {
-            data[i] = asset->data.joint_pos[i] - asset->data.default_joint_pos[i];
-        }
+
+    // 计算相对关节角： q - q_default
+    data.resize(joint_ids.size());
+    for (size_t i = 0; i < joint_ids.size(); ++i) {
+        int j = joint_ids[i];
+        data[i] = asset->data.joint_pos[j] - asset->data.default_joint_pos[j];
     }
+
+    std::cout << "[OBS] joint_pos: [";
+        for (size_t k = 0; k < joint_ids.size(); ++k) {
+            if (k) std::cout << ", ";
+            int j = joint_ids[k];
+            std::cout << static_cast<double>(asset->data.joint_pos[j]);
+        }
+    std::cout << "]\n";
+
+    std::cout << "[OBS] default_joint_pos: [";
+        for (size_t k = 0; k < joint_ids.size(); ++k) {
+            if (k) std::cout << ", ";
+            int j = joint_ids[k];
+            std::cout << static_cast<double>(asset->data.default_joint_pos[j]);
+        }
+    std::cout << "]\n";
+    std::cout << "[OBS] joint_pos_rel = joint_pos - default_joint_pos: [";
+        for (size_t k = 0; k < data.size(); ++k) {
+            if (k) std::cout << ", ";
+            std::cout << static_cast<double>(data[k]);
+        }
+    std::cout << "]" << std::endl;
+    
+
+    // ===== DEBUG PRINT (默认只打印一次) =====
+    static int dbg_print_times = 0;
+    if (dbg_print_times++ < 1) {
+        std::cout << std::fixed << std::setprecision(6);
+
+        std::cout << "[OBS] joint_ids (" << joint_ids.size() << "): [";
+        for (size_t k = 0; k < joint_ids.size(); ++k) {
+            if (k) std::cout << ", ";
+            std::cout << joint_ids[k];
+        }
+        std::cout << "]\n";
+
+        std::cout << "[OBS] joint_pos: [";
+        for (size_t k = 0; k < joint_ids.size(); ++k) {
+            if (k) std::cout << ", ";
+            int j = joint_ids[k];
+            std::cout << static_cast<double>(asset->data.joint_pos[j]);
+        }
+        std::cout << "]\n";
+
+        std::cout << "[OBS] default_joint_pos: [";
+        for (size_t k = 0; k < joint_ids.size(); ++k) {
+            if (k) std::cout << ", ";
+            int j = joint_ids[k];
+            std::cout << static_cast<double>(asset->data.default_joint_pos[j]);
+        }
+        std::cout << "]\n";
+
+        std::cout << "[OBS] joint_pos_rel = joint_pos - default_joint_pos: [";
+        for (size_t k = 0; k < data.size(); ++k) {
+            if (k) std::cout << ", ";
+            std::cout << static_cast<double>(data[k]);
+        }
+        std::cout << "]" << std::endl;
+    }
+    // ===== DEBUG PRINT END =====
 
     return data;
 }
+
+// REGISTER_OBSERVATION(joint_pos_rel)
+// {
+//     auto& asset = env->robot;
+
+//     // 1) 当前关节角
+//     const auto q_now = to_vec(asset->data.joint_pos);
+
+//     // 2) 配置项
+//     auto cfg = env->cfg["observations"]["joint_pos_rel"];
+//     const bool use_init_as_default =
+//         cfg["params"]["use_init_as_default"].as<bool>(true);
+
+//     // 3) 首帧基线
+//     if (use_init_as_default && !jp_baseline_set()) {
+//         jp_baseline() = q_now;
+//         jp_baseline_set() = true;
+//         spdlog::info("[C++] joint_pos_rel baseline captured (size={}): [{:.6f}, {:.6f}, {:.6f}, ...]",
+//                      jp_baseline().size(),
+//                      jp_baseline().empty() ? 0.f : jp_baseline()[0],
+//                      jp_baseline().size() > 1 ? jp_baseline()[1] : 0.f,
+//                      jp_baseline().size() > 2 ? jp_baseline()[2] : 0.f);
+//     }
+
+//     // 4) 选择参考
+//     std::vector<float> ref;
+//     if (use_init_as_default) {
+//         ref = jp_baseline();
+//     } else {
+//         const auto def_yaml = env->cfg["default_joint_pos"].as<std::vector<float>>();
+//         ref = def_yaml;
+//     }
+
+//     // 5) joint_ids
+//     std::vector<int> joint_ids;
+//     if (cfg["params"]["asset_cfg"]["joint_ids"].IsDefined()) {
+//         joint_ids = cfg["params"]["asset_cfg"]["joint_ids"].as<std::vector<int>>();
+//     } else {
+//         joint_ids.resize(q_now.size());
+//         for (size_t i = 0; i < q_now.size(); ++i) joint_ids[i] = static_cast<int>(i);
+//     }
+
+//     // ===== DEBUG 打印（前几帧）=====
+//     static int dbg_print_count = 0;
+//     if (dbg_print_count < 10) {
+//         auto vec_preview = [](const std::vector<float>& v, size_t maxn = 20) {
+//             std::string s; s.reserve(maxn * 12);
+//             s.push_back('[');
+//             const size_t n = std::min(v.size(), maxn);
+//             for (size_t i = 0; i < n; ++i) {
+//                 s += fmt::format("{:.6f}", v[i]);
+//                 if (i + 1 < n) s += ", ";
+//             }
+//             if (v.size() > maxn) s += ", ...";
+//             s.push_back(']');
+//             return s;
+//         };
+
+//         spdlog::info("[C++] joint_pos_rel dbg sizes: q_now={}, ref={}, joint_ids={}",
+//                      q_now.size(), ref.size(), joint_ids.size());
+//         spdlog::info("[C++] joint_pos_rel dbg q_now: {}", vec_preview(q_now, 20));
+//         spdlog::info("[C++] joint_pos_rel dbg ref  : {}", vec_preview(ref, 20));
+
+//         // 打印前 8 个映射项（joint_ids -> q/ref/diff）
+//         const size_t showK = std::min<size_t>(8, joint_ids.size());
+//         for (size_t k = 0; k < showK; ++k) {
+//             const int i = joint_ids[k];
+//             float qv = (i >= 0 && (size_t)i < q_now.size()) ? q_now[i] : std::numeric_limits<float>::quiet_NaN();
+//             float rv = (i >= 0 && (size_t)i < ref.size())   ? ref[i]   : std::numeric_limits<float>::quiet_NaN();
+//             float dv = (std::isnan(qv) || std::isnan(rv)) ? std::numeric_limits<float>::quiet_NaN() : (qv - rv);
+//             spdlog::info("[C++] jrel dbg k={:02d} idx={}  q={:.6f}  ref={:.6f}  diff={:.6f}", (int)k, i, qv, rv, dv);
+//         }
+//         ++dbg_print_count;
+//     }
+//     // ===== DEBUG 结束 =====
+
+//     // 6) 求差
+//     const size_t Nq = q_now.size();
+//     const size_t Nr = ref.size();
+//     const size_t N  = std::min(Nq, Nr);
+//     std::vector<float> out; out.resize(joint_ids.size());
+//     for (size_t k = 0; k < joint_ids.size(); ++k) {
+//         const int i = joint_ids[k];
+//         if (i < 0 || static_cast<size_t>(i) >= N) {
+//             out[k] = 0.0f;
+//         } else {
+//             out[k] = q_now[i] - ref[i];
+//         }
+//     }
+//     return out;
+// }
+
+
 
 REGISTER_OBSERVATION(joint_vel_rel)
 {
@@ -67,30 +288,178 @@ REGISTER_OBSERVATION(last_action)
 REGISTER_OBSERVATION(velocity_commands)
 {
     std::vector<float> obs(3);
-    auto & joystick = env->robot->data.joystick;
+    auto& joystick = env->robot->data.joystick;
 
     auto cfg = env->cfg["commands"]["base_velocity"]["ranges"];
-
-    obs[0] = std::clamp(joystick->ly(), cfg["lin_vel_x"][0].as<float>(), cfg["lin_vel_x"][1].as<float>());
+    obs[0] = std::clamp( joystick->ly(), cfg["lin_vel_x"][0].as<float>(), cfg["lin_vel_x"][1].as<float>());
     obs[1] = std::clamp(-joystick->lx(), cfg["lin_vel_y"][0].as<float>(), cfg["lin_vel_y"][1].as<float>());
     obs[2] = std::clamp(-joystick->rx(), cfg["ang_vel_z"][0].as<float>(), cfg["ang_vel_z"][1].as<float>());
-
     return obs;
 }
 
 REGISTER_OBSERVATION(gait_phase)
 {
-    float period = env->cfg["observations"]["gait_phase"]["params"]["period"].as<float>();
+    float period      = env->cfg["observations"]["gait_phase"]["params"]["period"].as<float>();
     float delta_phase = env->step_dt * (1.0f / period);
 
     env->global_phase += delta_phase;
-    env->global_phase = std::fmod(env->global_phase, 1.0f);
+    env->global_phase  = std::fmod(env->global_phase, 1.0f);
 
     std::vector<float> obs(2);
-    obs[0] = std::sin(env->global_phase * 2 * M_PI);
-    obs[1] = std::cos(env->global_phase * 2 * M_PI);
+    obs[0] = std::sin(env->global_phase * 2.f * static_cast<float>(M_PI));
+    obs[1] = std::cos(env->global_phase * 2.f * static_cast<float>(M_PI));
     return obs;
 }
 
+// ------------ demo 序列：加载与状态机 ------------
+namespace {
+
+// 共享缓冲：每帧 14 维
+inline std::vector<std::vector<float>>& demo_frames() {
+    static std::vector<std::vector<float>> f;
+    return f;
 }
+
+// 状态标志
+inline bool& demo_loaded()         { static bool b = false; return b; }
+inline int&  demo_index()          { static int  i = 0;     return i; }
+inline bool& demo_curr_inited()    { static bool b = false; return b; }
+inline bool& demo_next_inited()    { static bool b = false; return b; }
+inline bool& demo_first_compute()  { static bool b = true;  return b; }
+
+// 如需在状态切换时复位（可在你的状态机进入 Velocity 时调用）
+inline void reset_demo_seq()
+{
+    demo_index()         = 0;
+    demo_curr_inited()   = false;
+    demo_next_inited()   = false;
+    demo_first_compute() = true;
 }
+
+// 加载 .npy 并构建子集
+inline void load_motion_if_needed(isaaclab::ManagerBasedRLEnv* env)
+{
+    if (demo_loaded()) return;
+
+    auto mcfg = env->cfg["motion_reference"];
+    if (!mcfg) throw std::runtime_error("motion_reference block missing in deploy.yaml");
+
+    const std::string path  = mcfg["path"].as<std::string>();
+    const auto urdf_to_usd  = mcfg["urdf_to_usd"].as<std::vector<int>>();
+    const auto subset       = mcfg["subset"].as<std::vector<int>>();   // 14 个 USD 索引
+    const int   decimation  = mcfg["decimation"].as<int>(4);
+
+    if (urdf_to_usd.size() != 29) throw std::runtime_error("urdf_to_usd size must be 29");
+    if (subset.size()      != 14) throw std::runtime_error("subset size must be 14");
+
+    auto vec2str = [](const std::vector<int>& v){
+        std::string s; s.reserve(v.size()*3);
+        for (size_t i=0;i<v.size();++i) { s += std::to_string(v[i]); if (i+1<v.size()) s += ", "; }
+        return s;
+    };
+
+    cnpy::NpyArray arr = cnpy::npy_load(path.c_str());
+    if (arr.shape.size() != 2) throw std::runtime_error("npy must be 2D (T x D)");
+    const size_t T = arr.shape[0], D = arr.shape[1];
+    if (D < 29) throw std::runtime_error("npy second dim must be >= 29");
+
+    spdlog::info("Loaded motion data: ({}, {}) -> reindexed to: ({}, {})", T, D, T, D);
+    const size_t T_ds = (T + decimation - 1) / decimation;
+    spdlog::info("Downsampled motion data (every {} frames): ({}, 29)", decimation, T_ds);
+    spdlog::info("Using DOF subset: [{}]", vec2str(subset));
+
+    auto& frames = demo_frames();
+    frames.clear();
+    frames.reserve(T_ds);
+
+    const bool use_double = (arr.word_size == sizeof(double));
+    for (size_t t=0; t<T; t += std::max(1, decimation)) {
+        std::array<float,29> urdf29{};
+        if (use_double) {
+            const double* row = arr.data<double>() + t*D;
+            for (int i=0;i<29;++i) urdf29[i] = static_cast<float>(row[i]);
+        } else {
+            const float* row = arr.data<float>() + t*D;
+            for (int i=0;i<29;++i) urdf29[i] = row[i];
+        }
+        std::array<float,29> usd29{};
+        for (int i=0;i<29;++i) usd29[i] = urdf29[ urdf_to_usd[i] ];
+
+        std::vector<float> sub14; sub14.reserve(14);
+        for (int j : subset) {
+            if (j<0 || j>=29) throw std::runtime_error("subset index out of range");
+            sub14.push_back(usd29[j]);
+        }
+        frames.push_back(std::move(sub14));
+    }
+
+    const size_t N = frames.size();
+    spdlog::info("Final motion data subset shape: ({}, 14)", N);
+    const float step_dt = env->cfg["step_dt"].as<float>(env->step_dt);
+    spdlog::info("Motion data duration: {:.2f} seconds at {:.0f} Hz", N*step_dt, 1.0f/step_dt);
+
+    for (size_t k=0; k<std::min<size_t>(3, N); ++k){
+        std::string row; row.reserve(14*8);
+        for (int j=0;j<14;++j){ row += std::to_string(frames[k][j]); if(j+1<14) row += ", "; }
+        spdlog::info("demo_subset[{}] = [{}]", k, row);
+    }
+
+    demo_loaded() = true;
+    reset_demo_seq();  // 初始化序列状态
+}
+
+} // anonymous namespace
+
+// ------------ 两个 demo observation：按“demo 逻辑”对齐 Python ------------
+REGISTER_OBSERVATION(curr_demo_dof_pos)
+{
+    load_motion_if_needed(env);
+    auto& frames = demo_frames();
+    int   idx    = std::min(demo_index(), (int)frames.size()-1);
+
+    // 第一次被调用（reset 阶段）：返回 frame0 填充历史
+    if (!demo_curr_inited()) {
+        demo_curr_inited() = true;
+        return frames[idx]; // idx==0 => frame0
+    }
+
+    // 第一次 compute：返回 frame1，不推进 idx
+    if (demo_first_compute() && idx + 1 < (int)frames.size()) {
+        return frames[idx + 1];
+    }
+
+    // 之后：返回当前 idx（与 next_demo 同步）
+    return frames[idx];
+}
+
+REGISTER_OBSERVATION(next_demo_dof_pos)
+{
+    load_motion_if_needed(env);
+    auto& frames = demo_frames();
+    int&  idx    = demo_index();
+    int   cur    = std::min(idx, (int)frames.size()-1);
+
+    // 第一次被调用（reset 阶段）：返回 frame0 填充历史
+    if (!demo_next_inited()) {
+        demo_next_inited() = true;
+        return frames[cur]; // cur==0 => frame0
+    }
+
+    // 第一次 compute：返回 frame1，并把 idx 推进到 1
+    if (demo_first_compute()) {
+        demo_first_compute() = false;
+        if (cur + 1 < (int)frames.size()) {
+            ++idx;         // 0 -> 1
+            return frames[idx]; // frame1
+        }
+        return frames[cur]; // 只有一帧的兜底
+    }
+
+    // 之后：返回当前，再推进（保证两者在同一 tick 相等）
+    auto out = frames[cur];
+    if (idx + 1 < (int)frames.size()) ++idx;
+    return out;
+}
+
+} // namespace mdp
+} // namespace isaaclab

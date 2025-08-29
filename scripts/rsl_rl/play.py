@@ -58,6 +58,8 @@ from isaaclab.utils.dict import print_dict
 from isaaclab.utils.pretrained_checkpoint import get_published_pretrained_checkpoint
 from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper, export_policy_as_jit, export_policy_as_onnx
 from isaaclab_tasks.utils import get_checkpoint_path, parse_env_cfg
+import unitree_rl_lab.utils.actor_critic_scan  # 必须要有
+
 
 import unitree_rl_lab.tasks  # noqa: F401
 
@@ -69,6 +71,8 @@ def main():
         args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
     )
     agent_cfg: RslRlOnPolicyRunnerCfg = cli_args.parse_rsl_rl_cfg(args_cli.task, args_cli)
+    # agent_cfg.policy.class_name = "__import__('unitree_rl_lab.utils.actor_critic_scan', fromlist=['ActorCriticScanRecurrent']).ActorCriticScanRecurrent"
+
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)

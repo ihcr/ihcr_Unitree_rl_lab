@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.utils import configclass
-from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg
+from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlPpoActorCriticCfg, RslRlPpoAlgorithmCfg,RslRlPpoActorCriticRecurrentCfg
 
 
 @configclass
@@ -20,6 +20,39 @@ class BasePPORunnerCfg(RslRlOnPolicyRunnerCfg):
         critic_hidden_dims=[512, 256, 128],
         activation="elu",
     )
+
+    # policy = RslRlPpoActorCriticRecurrentCfg(
+    #     init_noise_std=0.8,
+    #     actor_hidden_dims=[32],
+    #     critic_hidden_dims=[32],
+    #     activation='elu',
+    #     rnn_type='lstm',
+    #     rnn_hidden_dim=64,
+    #     rnn_num_layers=1,
+    # )
+
+    # policy = RslRlPpoActorCriticRecurrentCfg(
+    #     init_noise_std=0.6,                 # RNN 往往用小一些更稳
+    #     actor_hidden_dims=[256, 128],
+    #     critic_hidden_dims=[256, 128],
+    #     activation="elu",
+    #     rnn_type="lstm",
+    #     rnn_hidden_dim=128,                 # 建议 128 起步
+    #     rnn_num_layers=1,
+    #     class_name="__import__('unitree_rl_lab.utils.actor_critic_scan', fromlist=['ActorCriticScanRecurrent']).ActorCriticScanRecurrent",
+    # )
+
+
+
+    # policy = RslRlPpoActorCriticCfg(
+    #     init_noise_std=0.8,
+    #     actor_hidden_dims=[512, 256, 128],
+    #     critic_hidden_dims=[512, 256, 128],
+    #     activation="elu",
+    #     # 关键：用内联 __import__，避免 NameError
+    #     class_name="__import__('unitree_rl_lab.utils.actor_critic_scan', fromlist=['ActorCriticScan']).ActorCriticScan",
+    # )
+    
     algorithm = RslRlPpoAlgorithmCfg(
         value_loss_coef=1.0,
         use_clipped_value_loss=True,

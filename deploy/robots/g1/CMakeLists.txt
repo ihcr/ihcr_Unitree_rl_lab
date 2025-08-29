@@ -12,16 +12,23 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/../../thirdparty/ocs2/include
   ${PROJECT_SOURCE_DIR}/../../thirdparty/onnxruntime-linux-x64-1.22.0/include
   ${PROJECT_SOURCE_DIR}/../../include/
+  ${PROJECT_SOURCE_DIR}/../../thirdparty/cnpy        # <<< 新增: cnpy 头文件
 )
 
 link_libraries(
-  unitree_sdk2 ddsc ddscxx rt pthread # dds
+  unitree_sdk2 ddsc ddscxx rt pthread                 # dds
   libboost_program_options.a libyaml-cpp.a fmt
   ${PROJECT_SOURCE_DIR}/../../thirdparty/onnxruntime-linux-x64-1.22.0/lib/libonnxruntime.so.1.22.0
+  z                                                  # <<< 新增: zlib（cnpy 需要）
 )
 
 file(GLOB_RECURSE ADD_SRC_LIST
   ${PROJECT_SOURCE_DIR}/src/*.cpp
+)
+
+# <<< 新增: 把 cnpy.cpp 一起编进库里（最简单可靠）
+list(APPEND ADD_SRC_LIST
+  ${PROJECT_SOURCE_DIR}/../../thirdparty/cnpy/cnpy.cpp
 )
 
 add_library(${PROJECT_NAME}_lib ${ADD_SRC_LIST})

@@ -17,6 +17,10 @@ from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.terrains import FlatPatchSamplingCfg
+from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort: skip
+
+
 
 from unitree_rl_lab.assets.robots.unitree import UNITREE_G1_29DOF_CFG
 from unitree_rl_lab.tasks.locomotion import mdp
@@ -37,16 +41,159 @@ COBBLESTONE_ROAD_CFG = terrain_gen.TerrainGeneratorCfg(
 )
 
 
+COBBLESTONE_AND_STAIRS_CFG = terrain_gen.TerrainGeneratorCfg(
+    size=(8.0, 8.0),
+    border_width=20.0,
+    num_rows=9,
+    num_cols=21,
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
+    difficulty_range=(0.0, 1.0),
+    curriculum=True,
+    use_cache=False,
+    sub_terrains={
+        # 50% 是鹅卵石 flat 区域
+        "flat": terrain_gen.MeshPlaneTerrainCfg(proportion=0.5,
+        flat_patch_sampling={
+                "init_pos": FlatPatchSamplingCfg(
+                    num_patches=1,
+                    patch_radius=0.15,          # ✅ 稍微缩小半径，便于采样
+                    max_height_diff=0.02,       # ✅ 更松一点，但仍平整
+                    x_range=(-0.3, 0.3),        # ✅ 中心区域即可
+                    y_range=(-0.3, 0.3),
+                    z_range=(-0.02, 0.02),
+                )
+            },
+        ),
+        # 50% 是楼梯区，可以细化多个难度
+        # 上楼梯（在 sub-terrain 中控制方向很难，需靠 agent 出生位置）
+        "stairs_down": terrain_gen.MeshPyramidStairsTerrainCfg(
+            proportion=0.25,
+            step_height_range=(0.03, 0.24),
+            step_width=0.3,
+            platform_width=3.0,
+            flat_patch_sampling={
+                "init_pos": FlatPatchSamplingCfg(
+                    num_patches=1,
+                    patch_radius=0.15,          # ✅ 稍微缩小半径，便于采样
+                    max_height_diff=0.02,       # ✅ 更松一点，但仍平整
+                    x_range=(-0.3, 0.3),        # ✅ 中心区域即可
+                    y_range=(-0.3, 0.3),
+                    z_range=(-0.02, 0.02),
+                )
+            },
+            
+        ),
+        "stairs_up": terrain_gen.MeshInvertedPyramidStairsTerrainCfg(
+            proportion=0.25,
+            step_height_range=(0.03, 0.24),
+            step_width=0.3,
+            platform_width=3.0,
+            flat_patch_sampling={
+                "init_pos": FlatPatchSamplingCfg(
+                    num_patches=1,
+                    patch_radius=0.15,          # ✅ 稍微缩小半径，便于采样
+                    max_height_diff=0.02,       # ✅ 更松一点，但仍平整
+                    x_range=(-0.3, 0.3),        # ✅ 中心区域即可
+                    y_range=(-0.3, 0.3),
+                    z_range=(-0.02, 0.02),
+                )
+            },
+        ),
+
+
+                # 斜坡（上坡 + 下坡）
+        # "slope": terrain_gen.HfPyramidSlopedTerrainCfg(
+        #     proportion=0.1,
+        #     slope_range=(0.01, 0.5),  # 弧度，约等于 (5.7°, 22.9°)
+        #     platform_width=3.0,
+        #     inverted=False,  # 默认为“从高处向下斜”
+
+        #     flat_patch_sampling={
+        #         "init_pos": FlatPatchSamplingCfg(
+        #             num_patches=1,
+        #             patch_radius=0.15,          # ✅ 稍微缩小半径，便于采样
+        #             max_height_diff=0.02,       # ✅ 更松一点，但仍平整
+        #             x_range=(-0.3, 0.3),        # ✅ 中心区域即可
+        #             y_range=(-0.3, 0.3),
+        #             z_range=(-0.02, 0.02),
+        #         )
+        #     },
+        # ),
+
+        # "slope_inverted": terrain_gen.HfPyramidSlopedTerrainCfg(
+        #     proportion=0.1,
+        #     slope_range=(0.01, 0.5),  # 弧度，约等于 (5.7°, 22.9°)
+        #     platform_width=3.0,
+        #     inverted=True,  # 默认为“从高处向下斜”
+
+        #     flat_patch_sampling={
+        #         "init_pos": FlatPatchSamplingCfg(
+        #             num_patches=1,
+        #             patch_radius=0.15,          # ✅ 稍微缩小半径，便于采样
+        #             max_height_diff=0.02,       # ✅ 更松一点，但仍平整
+        #             x_range=(-0.3, 0.3),        # ✅ 中心区域即可
+        #             y_range=(-0.3, 0.3),
+        #             z_range=(-0.02, 0.02),
+        #         )
+        #     },
+        # ),
+
+        # "Star": terrain_gen.MeshStarTerrainCfg(
+        #     proportion=0.1,
+        #     height_range=(0.05, 0.15),
+        #     block_size_range=(0.1, 0.3),
+        #     gap_size_range=(0.05, 0.15),
+        # ),
+
+        # "Rails": terrain_gen.MeshRailsTerrainCfg(
+        #     proportion=0.1,
+        #     rail_thickness_range=(0.05, 0.15),
+        #     rail_height_range=(0.05, 0.2),
+        #     platform_width=1.0
+        # ),
+        # "stairs_hard": terrain_gen.MeshPyramidStairsTerrainCfg(
+        #     proportion=0.05,
+        #     step_height_range=(0.10, 0.20),
+        #     step_width=0.25,
+        #     platform_width=0.5,
+        # ),
+    },
+)
+
+
 @configclass
 class RobotSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with a legged robot."""
 
     # ground terrain
+    # terrain = TerrainImporterCfg(
+    #     prim_path="/World/ground",
+    #     terrain_type="generator",  # "plane", "generator"
+    #     terrain_generator=COBBLESTONE_AND_STAIRS_CFG,  # None, ROUGH_TERRAINS_CFG
+    #     max_init_terrain_level=COBBLESTONE_AND_STAIRS_CFG.num_rows - 1,
+    #     collision_group=-1,
+    #     physics_material=sim_utils.RigidBodyMaterialCfg(
+    #         friction_combine_mode="multiply",
+    #         restitution_combine_mode="multiply",
+    #         static_friction=1.0,
+    #         dynamic_friction=1.0,
+    #     ),
+    #     visual_material=sim_utils.MdlFileCfg(
+    #         mdl_path=f"{ISAACLAB_NUCLEUS_DIR}/Materials/TilesMarbleSpiderWhiteBrickBondHoned/TilesMarbleSpiderWhiteBrickBondHoned.mdl",
+    #         project_uvw=True,
+    #         texture_scale=(0.25, 0.25),
+    #     ),
+    #     debug_vis=False,
+    # )
+
+
     terrain = TerrainImporterCfg(
         prim_path="/World/ground",
-        terrain_type="generator",  # "plane", "generator"
-        terrain_generator=COBBLESTONE_ROAD_CFG,  # None, ROUGH_TERRAINS_CFG
-        max_init_terrain_level=COBBLESTONE_ROAD_CFG.num_rows - 1,
+        terrain_type="generator",
+        terrain_generator=ROUGH_TERRAINS_CFG,
+        max_init_terrain_level=5,
         collision_group=-1,
         physics_material=sim_utils.RigidBodyMaterialCfg(
             friction_combine_mode="multiply",
@@ -68,7 +215,8 @@ class RobotSceneCfg(InteractiveSceneCfg):
     height_scanner = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/torso_link",
         offset=RayCasterCfg.OffsetCfg(pos=(0.0, 0.0, 20.0)),
-        attach_yaw_only=True,
+        # attach_yaw_only=True,
+        ray_alignment='yaw',
         pattern_cfg=patterns.GridPatternCfg(resolution=0.1, size=[1.6, 1.0]),
         debug_vis=False,
         mesh_prim_paths=["/World/ground"],
@@ -111,6 +259,15 @@ class EventCfg:
         },
     )
 
+    # base_com = EventTerm(
+    #     func=mdp.randomize_rigid_body_com,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names="torso_link"),
+    #         "com_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (-0.01, 0.01)},
+    #     },
+    # )
+
     # reset
     base_external_force_torque = EventTerm(
         func=mdp.apply_external_force_torque,
@@ -121,6 +278,22 @@ class EventCfg:
             "torque_range": (-0.0, 0.0),
         },
     )
+
+    # reset_base = EventTerm(
+    #     func=mdp.reset_root_state_from_terrain,
+    #     mode="reset",
+    #     params={
+    #         "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "z": (0.1, 0.15), "yaw": (-3.14, 3.14)},
+    #         "velocity_range": {
+    #             "x": (0.0, 0.0),
+    #             "y": (0.0, 0.0),
+    #             "z": (0.0, 0.0),
+    #             "roll": (0.0, 0.0),
+    #             "pitch": (0.0, 0.0),
+    #             "yaw": (0.0, 0.0),
+    #         },
+    #     },
+    # )
 
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
@@ -167,11 +340,19 @@ class CommandsCfg:
         rel_heading_envs=1.0,
         heading_command=False,
         debug_vis=True,
+        # ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
+        #     lin_vel_x=(-1.0, 2.0), lin_vel_y=(-0.1, 0.1), ang_vel_z=(-0.5, 0.5)
+        # ),
+        # limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
+        #     lin_vel_x=(-0.5, 2.0), lin_vel_y=(-0.3, 0.3), ang_vel_z=(-0.5, 0.5)
+        # ),
+
         ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.1, 0.1), lin_vel_y=(-0.1, 0.1), ang_vel_z=(-0.1, 0.1)
+            lin_vel_x=(1.0, 1.0), lin_vel_y=(0.0, 0.0), ang_vel_z=(0.0, 0.0)
         ),
         limit_ranges=mdp.UniformLevelVelocityCommandCfg.Ranges(
-            lin_vel_x=(-0.5, 1.0), lin_vel_y=(-0.3, 0.3), ang_vel_z=(-0.2, 0.2)
+            lin_vel_x=(-1.0, 2.0), lin_vel_y=(0.5, 0.5), ang_vel_z=(-1.0, 1.0)
+
         ),
     )
 
@@ -201,6 +382,17 @@ class ObservationsCfg:
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.05, noise=Unoise(n_min=-1.5, n_max=1.5))
         last_action = ObsTerm(func=mdp.last_action)
         # gait_phase = ObsTerm(func=mdp.gait_phase, params={"period": 0.8})
+        # height_scanner = ObsTerm(func=mdp.height_scan,
+        #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+        #     clip=(-1.0, 5.0),
+        # )
+
+        height_scan = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
+        )
 
         def __post_init__(self):
             self.history_length = 5
@@ -226,9 +418,17 @@ class ObservationsCfg:
         #     params={"sensor_cfg": SceneEntityCfg("height_scanner")},
         #     clip=(-1.0, 5.0),
         # )
+        height_scan = ObsTerm(
+            func=mdp.height_scan,
+            params={"sensor_cfg": SceneEntityCfg("height_scanner")},
+            noise=Unoise(n_min=-0.1, n_max=0.1),
+            clip=(-1.0, 1.0),
+        )
 
         def __post_init__(self):
             self.history_length = 5
+            self.concatenate_terms = True
+
 
     # privileged observations
     critic: CriticCfg = CriticCfg()
@@ -237,6 +437,12 @@ class ObservationsCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
+
+
+
+    # termination_penalty = RewTerm(func=mdp.is_terminated, weight=-200.0)
+    termination_penalty = RewTerm(func=mdp.is_terminated, weight=-10.0)
+
 
     # -- task
     track_lin_vel_xy = RewTerm(
@@ -248,10 +454,28 @@ class RewardsCfg:
         func=mdp.track_ang_vel_z_exp, weight=0.5, params={"command_name": "base_velocity", "std": math.sqrt(0.25)}
     )
 
+
+    # stand_still = RewTerm(
+    #     func=mdp.stand_still,
+    #     weight=0.2,
+    #     params={"command_name": "base_velocity", "asset_cfg": SceneEntityCfg(
+    #             "robot",
+    #             joint_names=[
+    #                 ".*_shoulder_.*_joint",
+    #                 ".*_elbow_joint",
+    #                 ".*_wrist_.*",
+    #                 ".*_hip_roll_joint", 
+    #                 ".*_hip_yaw_joint",
+    #                 ".*_hip_pitch_joint",
+    #                 ".*_ankle_.*_joint",
+    #             ],
+    #         )},
+    # )
+
     alive = RewTerm(func=mdp.is_alive, weight=0.15)
 
     # -- base
-    base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
+    # base_linear_velocity = RewTerm(func=mdp.lin_vel_z_l2, weight=-2.0)
     base_angular_velocity = RewTerm(func=mdp.ang_vel_xy_l2, weight=-0.05)
     joint_vel = RewTerm(func=mdp.joint_vel_l2, weight=-0.001)
     joint_acc = RewTerm(func=mdp.joint_acc_l2, weight=-2.5e-7)
@@ -293,20 +517,37 @@ class RewardsCfg:
 
     # -- robot
     flat_orientation_l2 = RewTerm(func=mdp.flat_orientation_l2, weight=-5.0)
-    base_height = RewTerm(func=mdp.base_height_l2, weight=-10, params={"target_height": 0.78})
-
-    # -- feet
-    gait = RewTerm(
-        func=mdp.feet_gait,
-        weight=0.5,
+    # base_height = RewTerm(func=mdp.base_height_l2, weight=-10, params={"target_height": 0.78})
+    base_height = RewTerm(
+        func=mdp.base_height_l2,            # 就是你贴的那个函数
+        weight=-10.0,                        # 先别太大，-2 ~ -5 都行；和 termination 是互补关系
         params={
-            "period": 0.8,
-            "offset": [0.0, 0.5],
-            "threshold": 0.55,
-            "command_name": "base_velocity",
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
+            "target_height": 0.78,          # 取你“平地自然站姿的 base_z - 地面高度”，G1 常见 0.74~0.78
+            "sensor_cfg": SceneEntityCfg("height_scanner"),
+            # asset_cfg 可不写，默认 "robot"
         },
     )
+
+
+    # -- feet
+    # gait = RewTerm(
+    #     func=mdp.feet_gait,
+    #     weight=0.5,
+    #     params={
+    #         "period": 0.8,
+    #         "offset": [0.0, 0.5],
+    #         "threshold": 0.55,
+    #         "command_name": "base_velocity",
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
+    #     },
+    # )
+    # gait = RewTerm(
+    #     func=mdp.contact_event_reward,
+    #     weight=0.5,
+    #     params={
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
+    #     },
+    # )
     feet_slide = RewTerm(
         func=mdp.feet_slide,
         weight=-0.2,
@@ -315,26 +556,103 @@ class RewardsCfg:
             "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
         },
     )
+    # feet_clearance = RewTerm(
+    #     func=mdp.foot_clearance_reward,
+    #     weight=1.0,
+    #     params={
+    #         "std": 0.05,
+    #         "tanh_mult": 2.0,
+    #         "target_height": 0.1,
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+    #     },
+    # )
     feet_clearance = RewTerm(
-        func=mdp.foot_clearance_reward,
+        func=mdp.foot_clearance_terrain_reward,
         weight=1.0,
         params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+            "ground_sensor_cfg": SceneEntityCfg("height_scanner"),
+            "contact_sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
+            "margin": 0.10,        # 楼梯先用 0.10~0.12，学稳了再降
             "std": 0.05,
             "tanh_mult": 2.0,
-            "target_height": 0.1,
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
         },
     )
 
-    # -- other
-    undesired_contacts = RewTerm(
-        func=mdp.undesired_contacts,
-        weight=-1,
+    # feet_clearance = RewTerm(
+    #     func=mdp.foot_clearance_rel_terrain,
+    #     weight=1.2,   
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+    #         "ray_sensor": SceneEntityCfg("height_scanner"),
+    #         "contact_sensor": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
+    #         "safety_margin": 0.03,
+    #         "target_clear": 0.06,
+    #         "std": 0.05,
+    #         "tanh_mult": 2.0,
+    #         "c_under": 50.0,
+    #         "c_over": 1.0,
+    #         "num_scan_pts": 5,
+    #         # "ahead": 0.20,
+    #         "ahead": 0.14,     # ✅ 缩短到一阶内
+
+    #         # "half_width": 0.06,
+    #         "half_width": 0.05 # ✅ 与上面一致
+    #     },
+    # )
+
+
+    feet_stumble = RewTerm(
+        func=mdp.feet_stumble,
+        weight=-1.0,
         params={
-            "threshold": 1,
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["(?!.*ankle.*).*"]),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
         },
     )
+
+    # feet_edge_align = RewTerm(
+    #     func=mdp.foot_edge_alignment,
+    #     weight=1.0,
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*ankle_roll.*"),
+    #         "ray_sensor": SceneEntityCfg("height_scanner"),
+    #         "contact_sensor": SceneEntityCfg("contact_forces", body_names=".*ankle_roll.*"),
+    #         "h_jump_thresh": 0.05,
+    #         "safe_dist": 0.05,
+    #         "w_pos": 0.6,
+    #         "w_neg": 1.2,
+    #         "search_radius": 0.30,
+    #     },
+    # )
+
+
+
+    feet_air_time = RewTerm(
+        func=mdp.feet_air_time_positive_biped,
+        weight=0.25,
+        params={
+            "command_name": "base_velocity",
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_ankle_roll_link"),
+            "threshold": 0.4,
+        },
+    )
+
+
+
+    # -- other
+    # undesired_contacts = RewTerm(
+    #     func=mdp.undesired_contacts,
+    #     weight=-1,
+    #     params={
+    #         "threshold": 2,
+    #         "sensor_cfg": SceneEntityCfg("contact_forces", body_names=["(?!.*ankle.*).*"]),
+    #     },
+    # )
+
+
+
+
+
 
 
 @configclass
@@ -342,7 +660,21 @@ class TerminationsCfg:
     """Termination terms for the MDP."""
 
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    base_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.2})
+    # base_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.2})
+    # base_height = DoneTerm(func=mdp.root_height_below_terrain_origin_map, params={"min_relative_height": 0.2})
+    base_height = DoneTerm(
+        func=mdp.root_height_below_mesh_terrain,
+        params={
+            "min_relative_height": 0.2,
+            "sensor_cfg": SceneEntityCfg("height_scanner"),
+        }
+    )
+    base_contact = DoneTerm(
+        func=mdp.illegal_contact,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names="torso_link"), "threshold": 1.0},
+    )
+    
+    # base_height = DoneTerm(func=mdp.root_height_below_relative_minimum, params={"minimum_rel_height": 0.2})
     bad_orientation = DoneTerm(func=mdp.bad_orientation, params={"limit_angle": 0.8})
 
 
@@ -359,7 +691,7 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the locomotion velocity-tracking environment."""
 
     # Scene settings
-    scene: RobotSceneCfg = RobotSceneCfg(num_envs=4096, env_spacing=2.5)
+    scene: RobotSceneCfg = RobotSceneCfg(num_envs=2048, env_spacing=2.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -400,7 +732,11 @@ class RobotEnvCfg(ManagerBasedRLEnvCfg):
 class RobotPlayEnvCfg(RobotEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        self.scene.num_envs = 32
-        self.scene.terrain.terrain_generator.num_rows = 2
+        self.scene.num_envs = 100
+        self.scene.terrain.terrain_generator.num_rows = 10
         self.scene.terrain.terrain_generator.num_cols = 10
-        self.commands.base_velocity.ranges = self.commands.base_velocity.limit_ranges
+        # self.commands.base_velocity.ranges = self.commands.base_velocity.limit_ranges
+        self.commands.base_velocity.ranges.lin_vel_x = (-0.5, 1.5)
+        self.commands.base_velocity.ranges.lin_vel_y = (-0.3, 0.3)
+        self.commands.base_velocity.ranges.ang_vel_z = (-1.0, 1.0)
+
