@@ -10,6 +10,8 @@
 #include <vector>
 #include <cmath>
 // 头部（observations.h 或对应 .cpp 顶部）补充：
+#include <numbers>     // ✅ 用 std::numbers::pi_v<float>
+
 #include <iostream>
 #include <iomanip>
 #include <numeric>
@@ -17,12 +19,10 @@
 #include <sstream>
 #include <limits>
 
-#include <iostream>
-#include <iomanip>   // ← 必须：std::setprecision, std::fixed
-#include <numeric>   // 如果用了 std::iota
-#include <limits>    // 如果用了 std::numeric_limits
 
 #include "isaaclab/envs/manager_based_rl_env.h"
+#include "isaaclab/envs/mdp/depth/depth_utils.h"   // ✅ 新增：forward_depth 依赖
+
 #include "/home/tianhup/Desktop/unitree_rl_lab/deploy/thirdparty/cnpy/cnpy.h"
 // #include <cnpy.h>
 #include <spdlog/spdlog.h>
@@ -40,6 +40,25 @@ inline bool& jp_baseline_set() { static bool b = false; return b; }
 inline std::vector<float>& jp_baseline() { static std::vector<float> v; return v; }
 } // anonymous
 
+
+#include <filesystem>
+namespace fs = std::filesystem;
+
+namespace {
+inline fs::file_time_type& demo_last_mtime() { 
+    static fs::file_time_type t{}; 
+    return t; 
+}
+inline std::string& demo_motion_path() { 
+    static std::string p; 
+    return p; 
+}
+inline std::uintmax_t& demo_last_bytes() {
+     static std::uintmax_t b = 0; 
+     return b; 
+}
+
+}
 // ==== 可选：提供一个可从别处调用的“重置基线”函数（放在命名空间里）====
 namespace isaaclab { namespace mdp {
 inline void reset_joint_pos_rel_baseline() {
@@ -66,32 +85,7 @@ REGISTER_OBSERVATION(projected_gravity)
     return std::vector<float>(data.data(), data.data() + data.size());
 }
 
-// REGISTER_OBSERVATION(joint_pos_rel)
-// {
-//     auto & asset = env->robot;
-//     std::vector<float> data;
 
-//     auto cfg = env->cfg["observations"]["joint_pos_rel"];
-//     if(cfg["params"]["asset_cfg"]["joint_ids"].IsDefined())
-//     {
-//         auto joint_ids = cfg["params"]["asset_cfg"]["joint_ids"].as<std::vector<int>>();
-//         data.resize(joint_ids.size());
-//         for(size_t i = 0; i < joint_ids.size(); ++i)
-//         {
-//             data[i] = asset->data.joint_pos[joint_ids[i]] - asset->data.default_joint_pos[joint_ids[i]];
-//         }
-//     }
-//     else
-//     {
-//         data.resize(asset->data.joint_pos.size());
-//         for(size_t i = 0; i < asset->data.joint_pos.size(); ++i)
-//         {
-//             data[i] = asset->data.joint_pos[i] - asset->data.default_joint_pos[i];
-//         }
-//     }
-
-//     return data;
-// }
 
 REGISTER_OBSERVATION(joint_pos_rel)
 {
@@ -115,160 +109,10 @@ REGISTER_OBSERVATION(joint_pos_rel)
         int j = joint_ids[i];
         data[i] = asset->data.joint_pos[j] - asset->data.default_joint_pos[j];
     }
-
-    std::cout << "[OBS] joint_pos: [";
-        for (size_t k = 0; k < joint_ids.size(); ++k) {
-            if (k) std::cout << ", ";
-            int j = joint_ids[k];
-            std::cout << static_cast<double>(asset->data.joint_pos[j]);
-        }
-    std::cout << "]\n";
-
-    std::cout << "[OBS] default_joint_pos: [";
-        for (size_t k = 0; k < joint_ids.size(); ++k) {
-            if (k) std::cout << ", ";
-            int j = joint_ids[k];
-            std::cout << static_cast<double>(asset->data.default_joint_pos[j]);
-        }
-    std::cout << "]\n";
-    std::cout << "[OBS] joint_pos_rel = joint_pos - default_joint_pos: [";
-        for (size_t k = 0; k < data.size(); ++k) {
-            if (k) std::cout << ", ";
-            std::cout << static_cast<double>(data[k]);
-        }
-    std::cout << "]" << std::endl;
-    
-
-    // ===== DEBUG PRINT (默认只打印一次) =====
-    static int dbg_print_times = 0;
-    if (dbg_print_times++ < 1) {
-        std::cout << std::fixed << std::setprecision(6);
-
-        std::cout << "[OBS] joint_ids (" << joint_ids.size() << "): [";
-        for (size_t k = 0; k < joint_ids.size(); ++k) {
-            if (k) std::cout << ", ";
-            std::cout << joint_ids[k];
-        }
-        std::cout << "]\n";
-
-        std::cout << "[OBS] joint_pos: [";
-        for (size_t k = 0; k < joint_ids.size(); ++k) {
-            if (k) std::cout << ", ";
-            int j = joint_ids[k];
-            std::cout << static_cast<double>(asset->data.joint_pos[j]);
-        }
-        std::cout << "]\n";
-
-        std::cout << "[OBS] default_joint_pos: [";
-        for (size_t k = 0; k < joint_ids.size(); ++k) {
-            if (k) std::cout << ", ";
-            int j = joint_ids[k];
-            std::cout << static_cast<double>(asset->data.default_joint_pos[j]);
-        }
-        std::cout << "]\n";
-
-        std::cout << "[OBS] joint_pos_rel = joint_pos - default_joint_pos: [";
-        for (size_t k = 0; k < data.size(); ++k) {
-            if (k) std::cout << ", ";
-            std::cout << static_cast<double>(data[k]);
-        }
-        std::cout << "]" << std::endl;
-    }
     // ===== DEBUG PRINT END =====
 
     return data;
 }
-
-// REGISTER_OBSERVATION(joint_pos_rel)
-// {
-//     auto& asset = env->robot;
-
-//     // 1) 当前关节角
-//     const auto q_now = to_vec(asset->data.joint_pos);
-
-//     // 2) 配置项
-//     auto cfg = env->cfg["observations"]["joint_pos_rel"];
-//     const bool use_init_as_default =
-//         cfg["params"]["use_init_as_default"].as<bool>(true);
-
-//     // 3) 首帧基线
-//     if (use_init_as_default && !jp_baseline_set()) {
-//         jp_baseline() = q_now;
-//         jp_baseline_set() = true;
-//         spdlog::info("[C++] joint_pos_rel baseline captured (size={}): [{:.6f}, {:.6f}, {:.6f}, ...]",
-//                      jp_baseline().size(),
-//                      jp_baseline().empty() ? 0.f : jp_baseline()[0],
-//                      jp_baseline().size() > 1 ? jp_baseline()[1] : 0.f,
-//                      jp_baseline().size() > 2 ? jp_baseline()[2] : 0.f);
-//     }
-
-//     // 4) 选择参考
-//     std::vector<float> ref;
-//     if (use_init_as_default) {
-//         ref = jp_baseline();
-//     } else {
-//         const auto def_yaml = env->cfg["default_joint_pos"].as<std::vector<float>>();
-//         ref = def_yaml;
-//     }
-
-//     // 5) joint_ids
-//     std::vector<int> joint_ids;
-//     if (cfg["params"]["asset_cfg"]["joint_ids"].IsDefined()) {
-//         joint_ids = cfg["params"]["asset_cfg"]["joint_ids"].as<std::vector<int>>();
-//     } else {
-//         joint_ids.resize(q_now.size());
-//         for (size_t i = 0; i < q_now.size(); ++i) joint_ids[i] = static_cast<int>(i);
-//     }
-
-//     // ===== DEBUG 打印（前几帧）=====
-//     static int dbg_print_count = 0;
-//     if (dbg_print_count < 10) {
-//         auto vec_preview = [](const std::vector<float>& v, size_t maxn = 20) {
-//             std::string s; s.reserve(maxn * 12);
-//             s.push_back('[');
-//             const size_t n = std::min(v.size(), maxn);
-//             for (size_t i = 0; i < n; ++i) {
-//                 s += fmt::format("{:.6f}", v[i]);
-//                 if (i + 1 < n) s += ", ";
-//             }
-//             if (v.size() > maxn) s += ", ...";
-//             s.push_back(']');
-//             return s;
-//         };
-
-//         spdlog::info("[C++] joint_pos_rel dbg sizes: q_now={}, ref={}, joint_ids={}",
-//                      q_now.size(), ref.size(), joint_ids.size());
-//         spdlog::info("[C++] joint_pos_rel dbg q_now: {}", vec_preview(q_now, 20));
-//         spdlog::info("[C++] joint_pos_rel dbg ref  : {}", vec_preview(ref, 20));
-
-//         // 打印前 8 个映射项（joint_ids -> q/ref/diff）
-//         const size_t showK = std::min<size_t>(8, joint_ids.size());
-//         for (size_t k = 0; k < showK; ++k) {
-//             const int i = joint_ids[k];
-//             float qv = (i >= 0 && (size_t)i < q_now.size()) ? q_now[i] : std::numeric_limits<float>::quiet_NaN();
-//             float rv = (i >= 0 && (size_t)i < ref.size())   ? ref[i]   : std::numeric_limits<float>::quiet_NaN();
-//             float dv = (std::isnan(qv) || std::isnan(rv)) ? std::numeric_limits<float>::quiet_NaN() : (qv - rv);
-//             spdlog::info("[C++] jrel dbg k={:02d} idx={}  q={:.6f}  ref={:.6f}  diff={:.6f}", (int)k, i, qv, rv, dv);
-//         }
-//         ++dbg_print_count;
-//     }
-//     // ===== DEBUG 结束 =====
-
-//     // 6) 求差
-//     const size_t Nq = q_now.size();
-//     const size_t Nr = ref.size();
-//     const size_t N  = std::min(Nq, Nr);
-//     std::vector<float> out; out.resize(joint_ids.size());
-//     for (size_t k = 0; k < joint_ids.size(); ++k) {
-//         const int i = joint_ids[k];
-//         if (i < 0 || static_cast<size_t>(i) >= N) {
-//             out[k] = 0.0f;
-//         } else {
-//             out[k] = q_now[i] - ref[i];
-//         }
-//     }
-//     return out;
-// }
 
 
 
@@ -295,6 +139,11 @@ REGISTER_OBSERVATION(velocity_commands)
     obs[1] = std::clamp(-joystick->lx(), cfg["lin_vel_y"][0].as<float>(), cfg["lin_vel_y"][1].as<float>());
     obs[2] = std::clamp(-joystick->rx(), cfg["ang_vel_z"][0].as<float>(), cfg["ang_vel_z"][1].as<float>());
     return obs;
+}
+REGISTER_OBSERVATION(forward_depth)
+{
+    // 直接从 depth ring 读取（已是 [0,1]、长度 out_h*out_w=48*64）
+    return isaaclab::mdp::obs_forward_depth();
 }
 
 REGISTER_OBSERVATION(gait_phase)
@@ -326,6 +175,8 @@ inline int&  demo_index()          { static int  i = 0;     return i; }
 inline bool& demo_curr_inited()    { static bool b = false; return b; }
 inline bool& demo_next_inited()    { static bool b = false; return b; }
 inline bool& demo_first_compute()  { static bool b = true;  return b; }
+inline size_t& demo_last_size() { static size_t n = 0; return n; }
+inline bool&   demo_last_inited() { static bool inited = false; return inited; }  // 可选
 
 // 如需在状态切换时复位（可在你的状态机进入 Velocity 时调用）
 inline void reset_demo_seq()
@@ -405,14 +256,69 @@ inline void load_motion_if_needed(isaaclab::ManagerBasedRLEnv* env)
     }
 
     demo_loaded() = true;
-    reset_demo_seq();  // 初始化序列状态
+    demo_last_size() = demo_frames().size();  // 记录当前帧数
+    reset_demo_seq();    
+    // 记录路径 & 当前 mtime
+    demo_motion_path() = path;
+    std::error_code ec;
+    auto p = fs::path(path);
+    demo_last_mtime() = fs::last_write_time(p, ec);
+    demo_last_bytes() = fs::file_size(p, ec);
 }
 
 } // anonymous namespace
 
+
+
+
+inline void reload_if_file_changed(isaaclab::ManagerBasedRLEnv* env)
+{
+    if (!demo_loaded()) return;
+    const std::string& path = demo_motion_path();
+    if (path.empty()) return;
+
+    std::error_code ec;
+    auto p = fs::path(path);
+    auto now_mtime = fs::last_write_time(p, ec);
+    auto now_bytes = fs::file_size(p, ec);
+    if (ec) return;
+
+    if (now_mtime != demo_last_mtime()|| now_bytes != demo_last_bytes()) {
+        // —— 保存现场 ——
+        const int  old_idx           = demo_index();
+        const bool old_curr_inited   = demo_curr_inited();
+        const bool old_next_inited   = demo_next_inited();
+        const bool old_first_compute = demo_first_compute();
+        const size_t old_N           = demo_last_size();
+
+        // —— 执行重载（不 reset）——
+        demo_loaded() = false;
+
+        load_motion_if_needed(env);
+
+        // 更新 mtime 记录
+        demo_last_mtime() = now_mtime;
+        demo_last_bytes() = now_bytes;
+
+        // —— 恢复状态（保留进度）——
+        const size_t new_N = demo_frames().size();
+        demo_last_size()   = new_N;
+
+        // 如果确实是“追加”而非“替换”，old prefix 与新数据兼容，此时直接保留 idx
+        // Clip 一下，防止越界（比如替换成更短的）
+        demo_index()          = std::min<int>(old_idx, int(new_N) - 1);
+        demo_curr_inited()    = old_curr_inited;
+        demo_next_inited()    = old_next_inited;
+        demo_first_compute()  = old_first_compute;  // 若你已进入 steady，则继续 steady
+
+        spdlog::info("[demo] motion_reference npy changed: {} -> {} frames, idx={} (preserved).",
+                     old_N, new_N, demo_index());
+    }
+}
 // ------------ 两个 demo observation：按“demo 逻辑”对齐 Python ------------
 REGISTER_OBSERVATION(curr_demo_dof_pos)
-{
+{   
+    reload_if_file_changed(env);
     load_motion_if_needed(env);
     auto& frames = demo_frames();
     int   idx    = std::min(demo_index(), (int)frames.size()-1);
@@ -433,7 +339,8 @@ REGISTER_OBSERVATION(curr_demo_dof_pos)
 }
 
 REGISTER_OBSERVATION(next_demo_dof_pos)
-{
+{   
+    reload_if_file_changed(env);
     load_motion_if_needed(env);
     auto& frames = demo_frames();
     int&  idx    = demo_index();

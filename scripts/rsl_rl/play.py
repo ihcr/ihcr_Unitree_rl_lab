@@ -135,7 +135,7 @@ def main():
     export_policy_as_onnx(
         policy_nn, normalizer=ppo_runner.obs_normalizer, path=export_model_dir, filename="policy.onnx"
     )
-
+    print('ppo_runner.obs_normalizer:',ppo_runner.obs_normalizer)
     dt = env.unwrapped.step_dt
 
     # reset environment

@@ -36,4 +36,5 @@ FSM:
     # policy_dir: config/policy/velocity
     # policy_dir: ../../../logs/rsl_rl/unitree_g1_29dof_velocity
     # policy_dir: "/home/tianhup/Desktop/unitree_rl_lab/deploy/robots/g1/config/policy/velocity/v0"
-    policy_dir: "/home/tianhup/Desktop/unitree_rl_lab/deploy/robots/g1/config/policy/motion_tracking"
+    policy_dir: "/home/tianhup/Desktop/unitree_rl_lab/deploy/robots/g1/config/policy/velocity/vision"
+    # policy_dir: "/home/tianhup/Desktop/unitree_rl_lab/deploy/robots/g1/config/policy/motion_tracking"

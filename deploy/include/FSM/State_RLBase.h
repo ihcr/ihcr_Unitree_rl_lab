@@ -6,6 +6,18 @@
 #include "FSMState.h"
 #include "isaaclab/envs/mdp/actions/joint_actions.h"
 
+// 深度共享内存
+#include "ipc/depth_shm_reader.hpp"
+
+// 标准库（你在 header 里用到了）
+#include <thread>        // std::thread
+#include <chrono>        // std::chrono
+#include <filesystem>    // std::filesystem::path / directory_iterator
+#include <vector>        // std::vector
+#include <algorithm>     // std::sort, std::clamp
+#include <cmath>         // std::isfinite
+#include <atomic>        // （可选）
+
 class State_RLBase : public FSMState
 {
 public:
@@ -56,6 +68,10 @@ public:
             policy_thread.join();
         }
     }
+        // --- NEW:（可选）向外暴露最近的深度统计，便于别处读取 ---
+    float depth_center_m() const { return depth_center_m_; }
+    float depth_roi_mean_m() const { return depth_roi_mean_m_; }
+    uint64_t depth_seq() const { return depth_seq_; }
 
 private:
     std::filesystem::path parser_policy_dir(std::filesystem::path policy_dir)
@@ -95,4 +111,13 @@ private:
 
     std::thread policy_thread;
     bool policy_thread_running = false;
+     // ===== NEW: Depth 共享内存读取相关 =====
+    std::unique_ptr<depth_ipc::DepthShmReader> depth_reader_;  // 读取器
+    uint32_t depth_w_ = 0, depth_h_ = 0;                       // 最近一帧尺寸
+    uint64_t depth_seq_ = 0, depth_stamp_ns_ = 0;              // 最近一帧序号/时间戳
+    float    depth_center_m_ = NAN;                            // 最近一帧中心像素（米）
+    float    depth_roi_mean_m_ = NAN;                          // 最近一帧中心 20×20 ROI 均值（米）
+
+    // 计算中心 ROI 均值的小工具
+    static float roi_mean_center(const float* d, uint32_t W, uint32_t H, int half = 10); // NEW
 };

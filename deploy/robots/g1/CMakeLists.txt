@@ -35,3 +35,6 @@ add_library(${PROJECT_NAME}_lib ${ADD_SRC_LIST})
 link_libraries(${PROJECT_NAME}_lib)
 
 add_executable(g1_ctrl main.cpp)
+# （可选）编一个小demo验证能读共享内存深度
+add_executable(depth_ipc_demo src/vision/depth_ipc_demo.cpp)
+target_link_libraries(depth_ipc_demo ${PROJECT_NAME}_lib)

@@ -1,3 +1,11 @@
+# Distiilation
+python scripts/rsl_rl/train.py   --task=Isaac-Velocity-Rough-G1-Play-v0-Distillation   --num_envs=75   --headless   --enable_cameras   --experiment_name=unitree_g1_29dof_velocity   --run_name=distill_2025-09-18   --load_run=2025-08-24_14-19-08   --checkpoint=model_17499.pt
+python scripts/rsl_rl/play.py   --task=Isaac-Velocity-Rough-G1-Play-v0-Distillation_1   --num_envs=1   --enable_cameras 
+
+
+
+
+
 # Unitree RL Lab — G1 Sim2Real 部署指南
 
 本项目支持在 **Mujoco 仿真** 与 **Unitree G1 真机** 上部署并运行策略（policy）。  
@@ -27,6 +35,14 @@
 cd unitree_rl_lab/deploy/robots/g1
 mkdir -p build && cd build
 cmake ..
+make -j
+```
+如果是加入深度相机
+```bash
+cmake .. \
+  -DENABLE_REALSENSE_DEPTH=ON \
+  -DCMAKE_TOOLCHAIN_FILE=/home/tianhup/Desktop/vcpkg/scripts/buildsystems/vcpkg.cmake \
+  -DVCPKG_TARGET_TRIPLET=x64-linux
 make -j
 ```
 
@@ -155,3 +171,51 @@ docker0
 ---
 
 如需扩展观测或动作空间，请在部署端相应源码（如 `observation.h`、动作配置）中实现并重新编译
+
+Vision Based Locomotion Policy Deployment
+Step1 
+启用机器人深度相机先进入G1 onboard computer
+
+```bash
+
+/home/unitree/realsense_ws/start_realsense.sh
+```
+
+Step2 
+启动Ros2 Message Bridge
+```bash
+
+cd ~/workspaces/depth_bridge_ros2/build 
+./depth_bridge_ros2 --ros-args -p topic:=/camera/depth/image_rect_raw -p shm:=/depth_shm0
+```
+ Vision-Based Locomotion Policy Deployment
+
+This guide explains how to deploy the vision-based locomotion policy on the **Unitree G1 onboard computer**.
+
+---
+
+## Step 1. Enable Depth Camera
+
+Run the RealSense startup script:
+
+```bash
+/home/unitree/realsense_ws/start_realsense.sh
+```
+Verify that the depth topic is available:
+```bash
+
+ros2 topic list | grep camera/depth
+```
+## Step 2. Start ROS2 ↔︎ Shared Memory Bridge
+
+Navigate to the bridge build directory and launch the bridge:
+```bash
+
+cd ~/workspaces/depth_bridge_ros2/build
+./depth_bridge_ros2 --ros-args \
+    -p topic:=/camera/depth/image_rect_raw \
+    -p shm:=/depth_shm0
+```
+
+
+env -i PATH="/usr/bin:/bin" LD_LIBRARY_PATH="/usr/local/lib:$ONNXRUNTIME_CAPI" CYCLONEDDS_URI="file://$HOME/cyclonedds_no_shm.xml" ./g1_ctrl --network eno2
